@@ -1,0 +1,675 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum CustomerType {
+  INDIVIDUAL    // Pessoa Física (PF)
+  BUSINESS      // Pessoa Jurídica (PJ)
+}
+
+enum BusinessStatus {
+  PENDING       // Aguardando aprovação
+  APPROVED      // Aprovado para comprar
+  REJECTED      // Rejeitado
+  SUSPENDED     // Suspenso temporariamente
+}
+
+enum StorageType {
+  AMBIENT       // Temperatura ambiente
+  FROZEN_READY  // Congelado pronto para consumo
+  FROZEN_RAW    // Congelado cru (precisa cozinhar)
+  REFRIGERATED  // Refrigerado
+}
+
+enum OrderStatus {
+  PENDING       // Aguardando pagamento
+  PAID          // Pago
+  PROCESSING    // Em preparação
+  SHIPPED       // Enviado
+  DELIVERED     // Entregue
+  CANCELED      // Cancelado
+}
+
+enum PaymentStatus {
+  PENDING       // Aguardando pagamento
+  PAID          // Pago
+  FAILED        // Falha no pagamento
+  REFUNDED      // Reembolsado
+  INVOICED      // Faturado (para PJ)
+}
+
+enum PaymentMethod {
+  STRIPE        // Cartão via Stripe
+  DAIBIKI       // Pagamento na entrega
+  BANK_TRANSFER // Transferência bancária (PJ)
+  INVOICE       // Faturamento mensal (PJ)
+}
+
+enum ShippingCarrier {
+  SAGAWA        // Sagawa Express
+  YUUPACK       // Correio Yuupack
+  WS_TRANSPORT  // Transportadora WS
+  COMPANY_ROUTE // Rota própria da empresa
+}
+
+// ═══════════════════════════════════════════════════════════
+// USUÁRIOS DO SISTEMA (Funcionários)
+// ═══════════════════════════════════════════════════════════
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  
+  firstName     String
+  lastName      String
+  phone         String?
+  
+  role          UserRole  @default(STAFF)
+  isActive      Boolean   @default(true)
+  
+  lastLoginAt   DateTime?
+  
+  // Rastreabilidade
+  createdBy     String?
+  updatedBy     String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("users")
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLIENTES (PF e PJ unificados)
+// ═══════════════════════════════════════════════════════════
+model Customer {
+  id                String        @id @default(cuid())
+  
+  // Tipo de cliente
+  type              CustomerType
+  
+  // ─────────────────────────────────────────────────────────
+  // DADOS PESSOA FÍSICA
+  // ─────────────────────────────────────────────────────────
+  firstName         String?       // Nome
+  lastName          String?       // Sobrenome
+  firstNameKana     String?       // Nome em Katakana
+  lastNameKana      String?       // Sobrenome em Katakana
+  
+  // ─────────────────────────────────────────────────────────
+  // DADOS PESSOA JURÍDICA
+  // ─────────────────────────────────────────────────────────
+  companyName       String?       // Razão social
+  companyNameKana   String?       // Razão social em Katakana
+  taxId             String?       // TAX ID / CNPJ
+  representativeName String?      // Nome do representante
+  
+  businessStatus    BusinessStatus? @default(PENDING) // Status aprovação PJ
+  approvedAt        DateTime?     // Data de aprovação
+  approvedBy        String?       // ID do user que aprovou
+  contractNotes     String?       @db.Text // Observações do contrato
+  
+  // ─────────────────────────────────────────────────────────
+  // CONTATO
+  // ─────────────────────────────────────────────────────────
+  email             String        @unique
+  phone             String        // Celular (必須)
+  phoneAlt          String?       // Telefone alternativo (opcional)
+  
+  // ─────────────────────────────────────────────────────────
+  // ENDEREÇO (Padrão japonês para CSV Sagawa)
+  // ─────────────────────────────────────────────────────────
+  postalCode        String?       // 〒 Yuubin Bangou (ex: 123-4567)
+  prefecture        String?       // 都道府県 (ex: 東京都, 静岡県)
+  city              String?       // 市区町村 (ex: 渋谷区, 掛川市)
+  ward              String?       // 町域 (ex: 神南)
+  streetAddress     String?       // 番地・号 (ex: 1-2-3)
+  building          String?       // 建物名・部屋番号 (ex: 〇〇マンション101号室)
+  
+  // ─────────────────────────────────────────────────────────
+  // STRIPE & PAGAMENTO
+  // ─────────────────────────────────────────────────────────
+  stripeCustomerId  String?       @unique
+  
+  // ─────────────────────────────────────────────────────────
+  // FATURAMENTO PJ (pagamento mensal)
+  // ─────────────────────────────────────────────────────────
+  paymentTerms      Int?          // Dias para pagamento (ex: 30 = paga 30 dias após fatura)
+  creditLimit       Int?          // Limite de crédito em centavos/yen
+  
+  // ─────────────────────────────────────────────────────────
+  // METADATA
+  // ─────────────────────────────────────────────────────────
+  isActive          Boolean       @default(true)
+  notes             String?       @db.Text // Observações internas
+  
+  orders            Order[]
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@map("customers")
+  @@index([email])
+  @@index([type])
+  @@index([businessStatus])
+  @@index([stripeCustomerId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// CATEGORIAS
+// ═══════════════════════════════════════════════════════════
+model Category {
+  id                String    @id @default(cuid())
+  slug              String    @unique
+  
+  // Multilíngue
+  namePt            String
+  nameJa            String
+  descriptionPt     String?   @db.Text
+  descriptionJa     String?   @db.Text
+  
+  // Imagem
+  image             String?
+  icon              String?   // Ícone SVG ou emoji
+  
+  // Hierarquia (categoria pai)
+  parentId          String?
+  parent            Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children          Category[] @relation("CategoryHierarchy")
+  
+  // SEO
+  metaTitlePt       String?
+  metaTitleJa       String?
+  metaDescriptionPt String?   @db.Text
+  metaDescriptionJa String?   @db.Text
+  metaKeywordsPt    String?   // Separado por vírgula
+  metaKeywordsJa    String?
+  
+  // Organização
+  sortOrder         Int       @default(0)
+  isActive          Boolean   @default(true)
+  isFeatured        Boolean   @default(false)
+  
+  products          Product[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("categories")
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRODUTOS
+// ═══════════════════════════════════════════════════════════
+model Product {
+  id                String      @id @default(cuid())
+  
+  // Códigos
+  hinban            String      @unique // Código interno (品番)
+  janCode           String?     @unique // JAN code (código de barras japonês)
+  slug              String      @unique
+  
+  // Multilíngue
+  namePt            String
+  nameJa            String
+  descriptionPt     String?     @db.Text
+  descriptionJa     String?     @db.Text
+  shortDescPt       String?     // Descrição curta para listagens
+  shortDescJa       String?
+  
+  // Categoria
+  categoryId        String
+  
+  // Impostos
+  taxIds            String[]    // IDs dos impostos aplicáveis
+  taxes             Tax[]       @relation("ProductTaxes")
+  category          Category    @relation(fields: [categoryId], references: [id])
+  
+  // Imagens
+  images            String[]    // Array de URLs
+  primaryImage      String?     // Imagem principal (primeira do array)
+  
+  // Especificações
+  weight            String?     // ex: "500g", "1kg"
+  dimensions        String?     // ex: "20x15x10cm"
+  storageType       StorageType
+  shelfLife         String?     // Validade (ex: "90 dias")
+  allergens         String[]    // Alérgenos (ex: ["卵", "小麦"])
+  
+  // ─────────────────────────────────────────────────────────
+  // SISTEMA DE PREÇOS
+  // ─────────────────────────────────────────────────────────
+  originalPrice     Int         // Preço base (em centavos/yen)
+  
+  // Preço varejo PF = originalPrice / 0.6 + imposto
+  retailMarkup      Float       @default(0.6) // Margem varejo (padrão 60%)
+  
+  // Preço atacado PJ (desconto progressivo por volume)
+  wholesaleTiers    WholesaleTier[] // Tabela de descontos
+  
+  // Preço promocional (sobrescreve cálculos)
+  promoPrice        Int?        // Se definido, usa este preço
+  promoStartDate    DateTime?
+  promoEndDate      DateTime?
+  
+  // ─────────────────────────────────────────────────────────
+  // ESTOQUE
+  // ─────────────────────────────────────────────────────────
+  stock             Int         @default(0)
+  minStock          Int         @default(0)  // Alerta de estoque mínimo
+  maxStock          Int?                     // Estoque máximo
+  stockUnit         String      @default("unidade") // un, kg, caixa, etc
+  
+  // ─────────────────────────────────────────────────────────
+  // CANAIS DE VENDA
+  // ─────────────────────────────────────────────────────────
+  availableForPf    Boolean     @default(true)  // Vende para PF?
+  availableForPj    Boolean     @default(true)  // Vende para PJ?
+  
+  // ─────────────────────────────────────────────────────────
+  // BADGES & DESTAQUE
+  // ─────────────────────────────────────────────────────────
+  isBestseller      Boolean     @default(false)
+  isNew             Boolean     @default(false)
+  isFeatured        Boolean     @default(false)
+  isOnSale          Boolean     @default(false) // Em promoção?
+  
+  // ─────────────────────────────────────────────────────────
+  // SEO
+  // ─────────────────────────────────────────────────────────
+  metaTitlePt       String?
+  metaTitleJa       String?
+  metaDescriptionPt String?     @db.Text
+  metaDescriptionJa String?     @db.Text
+  metaKeywordsPt    String?
+  metaKeywordsJa    String?
+  
+  // ─────────────────────────────────────────────────────────
+  // METADATA
+  // ─────────────────────────────────────────────────────────
+  tags              String[]
+  isActive          Boolean     @default(true)
+  sortOrder         Int         @default(0)
+  
+  // Relações
+  orderItems        OrderItem[]
+  inventoryLogs     InventoryLog[]
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("products")
+  @@index([categoryId])
+  @@index([hinban])
+  @@index([janCode])
+  @@index([slug])
+  @@index([storageType])
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABELA DE PREÇOS ATACADO (Desconto por Volume)
+// ═══════════════════════════════════════════════════════════
+model WholesaleTier {
+  id              String   @id @default(cuid())
+  
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  minQuantity     Int      // Quantidade mínima
+  discountPercent Float    // Desconto em % (ex: 10.0 = 10%)
+  
+  createdAt       DateTime @default(now())
+  
+  @@map("wholesale_tiers")
+  @@index([productId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMPOSTOS CONFIGURÁVEIS
+// ═══════════════════════════════════════════════════════════
+model TaxRate {
+  id              String   @id @default(cuid())
+  
+  name            String   // ex: "Consumo - Alimentos"
+  rate            Float    // ex: 8.0 = 8%
+  
+  // Aplicação
+  isDefault       Boolean  @default(false) // Taxa padrão?
+  applicableCategories String[] // IDs de categorias (vazio = todas)
+  
+  // Período de vigência
+  startDate       DateTime?
+  endDate         DateTime?
+  
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("tax_rates")
+}
+
+// ═══════════════════════════════════════════════════════════
+// MÉTODOS DE ENVIO E TABELA DE PREÇOS
+// ═══════════════════════════════════════════════════════════
+model ShippingMethod {
+  id                String           @id @default(cuid())
+  
+  carrier           ShippingCarrier
+  name              String           // ex: "Sagawa - Tamanho 60"
+  
+  // Aplicável para
+  forPf             Boolean          @default(true)
+  forPj             Boolean          @default(true)
+  
+  // Especificações
+  maxWeight         String?          // ex: "2kg"
+  maxDimensions     String?          // ex: "60cm (soma das 3 dimensões)"
+  
+  // Taxa base
+  baseFee           Int              // Em centavos/yen
+  
+  // Taxa adicional para Daibiki (pagamento na entrega)
+  daibikiFee        Int?             @default(0)
+  
+  // Tempo estimado de entrega
+  estimatedDays     String?          // ex: "1-2 dias"
+  
+  // Zonas de entrega (se aplicável)
+  zones             ShippingZone[]
+  
+  isActive          Boolean          @default(true)
+  sortOrder         Int              @default(0)
+  
+  orders            Order[]
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  @@map("shipping_methods")
+  @@index([carrier])
+}
+
+// ═══════════════════════════════════════════════════════════
+// ZONAS DE ENTREGA (preços por região)
+// ═══════════════════════════════════════════════════════════
+model ShippingZone {
+  id                  String         @id @default(cuid())
+  
+  shippingMethodId    String
+  shippingMethod      ShippingMethod @relation(fields: [shippingMethodId], references: [id], onDelete: Cascade)
+  
+  zoneName            String         // ex: "Kanto", "Kansai"
+  prefectures         String[]       // ex: ["東京都", "神奈川県", "埼玉県"]
+  
+  additionalFee       Int            @default(0) // Taxa adicional para esta zona
+  
+  createdAt           DateTime       @default(now())
+  
+  @@map("shipping_zones")
+  @@index([shippingMethodId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// PEDIDOS
+// ═══════════════════════════════════════════════════════════
+model Order {
+  id                  String         @id @default(cuid())
+  orderNumber         String         @unique // RP-2026-00001
+  
+  // Cliente
+  customerId          String
+  customer            Customer       @relation(fields: [customerId], references: [id])
+  
+  // ─────────────────────────────────────────────────────────
+  // VALORES (em centavos/yen)
+  // ─────────────────────────────────────────────────────────
+  subtotal            Int            // Soma dos produtos
+  discountAmount      Int            @default(0) // Desconto aplicado
+  taxAmount           Int            @default(0) // Imposto
+  shippingCost        Int            @default(0)
+  daibikiFee          Int            @default(0) // Taxa pagamento na entrega
+  total               Int            // Total final
+  
+  // ─────────────────────────────────────────────────────────
+  // STATUS
+  // ─────────────────────────────────────────────────────────
+  status              OrderStatus    @default(PENDING)
+  paymentStatus       PaymentStatus  @default(PENDING)
+  
+  // ─────────────────────────────────────────────────────────
+  // PAGAMENTO
+  // ─────────────────────────────────────────────────────────
+  paymentMethod       PaymentMethod
+  
+  // Stripe
+  stripePaymentIntentId String?      @unique
+  stripeSessionId       String?      @unique
+  
+  // PJ - Faturamento
+  invoiceNumber       String?        @unique // Número da fatura
+  invoiceDueDate      DateTime?      // Data de vencimento
+  
+  // ─────────────────────────────────────────────────────────
+  // ENVIO
+  // ─────────────────────────────────────────────────────────
+  shippingMethodId    String?
+  shippingMethod      ShippingMethod? @relation(fields: [shippingMethodId], references: [id])
+  
+  trackingNumber      String?        // Código de rastreamento
+  
+  // Endereço de entrega (snapshot - pode ser diferente do cadastro)
+  shippingName        String
+  shippingPhone       String
+  shippingPostalCode  String
+  shippingPrefecture  String
+  shippingCity        String
+  shippingWard        String?
+  shippingStreet      String
+  shippingBuilding    String?
+  
+  // ─────────────────────────────────────────────────────────
+  // OBSERVAÇÕES
+  // ─────────────────────────────────────────────────────────
+  customerNotes       String?        @db.Text // Observações do cliente
+  internalNotes       String?        @db.Text // Notas internas
+  
+  // ─────────────────────────────────────────────────────────
+  // DATAS
+  // ─────────────────────────────────────────────────────────
+  paidAt              DateTime?
+  processedAt         DateTime?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+  canceledAt          DateTime?
+  
+  // Relações
+  items               OrderItem[]
+  
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  
+  @@map("orders")
+  @@index([customerId])
+  @@index([orderNumber])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([trackingNumber])
+  @@index([stripePaymentIntentId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// ITENS DO PEDIDO
+// ═══════════════════════════════════════════════════════════
+model OrderItem {
+  id              String   @id @default(cuid())
+  
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  
+  // Snapshot do produto (preços no momento da compra)
+  namePt          String
+  nameJa          String
+  hinban          String
+  image           String?
+  
+  quantity        Int
+  unitPrice       Int      // Preço unitário (em centavos/yen)
+  subtotal        Int      // quantity * unitPrice
+  
+  // Desconto aplicado neste item
+  discountPercent Float?   // ex: 10.0 = 10% de desconto
+  discountAmount  Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTROLE DE ESTOQUE (LOG)
+// ═══════════════════════════════════════════════════════════
+model InventoryLog {
+  id              String   @id @default(cuid())
+  
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  
+  // Movimento
+  type            String   // IN (entrada), OUT (saída), ADJUSTMENT (ajuste)
+  quantity        Int      // Quantidade (positivo ou negativo)
+  previousStock   Int      // Estoque antes
+  newStock        Int      // Estoque depois
+  
+  // Motivo
+  reason          String   // ex: "Compra", "Venda", "Devolução", "Ajuste manual"
+  orderId         String?  // Se relacionado a um pedido
+  
+  // Responsável
+  userId          String?  // User que fez o movimento
+  
+  notes           String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  
+  @@map("inventory_logs")
+  @@index([productId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONFIGURAÇÕES DA EMPRESA
+// ═══════════════════════════════════════════════════════════
+model CompanySettings {
+  id              String   @id @default(cuid())
+  
+  // Dados da empresa
+  companyName     String
+  companyNameKana String?
+  taxId           String   // TAX ID / CNPJ
+  
+  // Contato
+  email           String
+  phone           String
+  fax             String?
+  website         String?
+  
+  // Endereço
+  postalCode      String
+  prefecture      String
+  city            String
+  ward            String?
+  streetAddress   String
+  building        String?
+  
+  // Branding
+  logoUrl         String?
+  faviconUrl      String?
+  primaryColor    String?  // ex: "#1e3a5f"
+  secondaryColor  String?  // ex: "#f4c430"
+  
+  // Informações fiscais
+  defaultTaxRate  Float    @default(8.0) // Taxa de imposto padrão
+  
+  // Configurações de pedido
+  minOrderAmount  Int?     // Pedido mínimo (em centavos/yen)
+  freeShippingThreshold Int? // Frete grátis acima deste valor
+  
+  // Redes sociais
+  instagram       String?
+  facebook        String?
+  twitter         String?
+  line            String?
+  
+  // Horário de funcionamento
+  businessHours   String?  @db.Text // JSON ou texto livre
+  
+  updatedAt       DateTime @updatedAt
+  
+  @@map("company_settings")
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMPOSTOS (TAXES)
+// ═══════════════════════════════════════════════════════════
+model Tax {
+  id                String      @id @default(cuid())
+  
+  // Multilíngue
+  namePt            String      // Nome em português (ex: "IVA", "Imposto Consumo")
+  nameJa            String      // Nome em japonês (ex: "消費税")
+  descriptionPt     String?     @db.Text
+  descriptionJa     String?     @db.Text
+  
+  // Configuração
+  rate              Float       // Taxa em % (ex: 10.0 para 10%)
+  type              TaxType     // Tipo do imposto
+  
+  // Aplicabilidade
+  applyToProducts   Boolean     @default(true)   // Aplicar em produtos
+  applyToShipping   Boolean     @default(false)  // Aplicar no frete
+  
+  // Prioridade e ativação
+  priority          Int         @default(0)      // Ordem de aplicação
+  isActive          Boolean     @default(true)
+  isDefault         Boolean     @default(false)  // Imposto padrão
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relações
+  products          Product[]   @relation("ProductTaxes")
+  
+  @@index([isActive])
+  @@index([isDefault])
+}
+
+enum TaxType {
+  CONSUMPTION       // Consumo (ex: 消費税 - Consumption Tax Japan)
+  VAT               // IVA/Value Added Tax
+  SALES             // Sales Tax
+  SERVICE           // Service Tax
+  EXCISE            // Imposto Especial
+  CUSTOM            // Personalizado
+}
