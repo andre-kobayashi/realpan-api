@@ -22,6 +22,7 @@ import paymentsRoutes from './routes/payments';
 import webhooksRoutes from './routes/webhooks';
 import addressesRoutes from './routes/addresses';
 import documentsRoutes from './routes/documents';
+import kitRoutes from './routes/kits';
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use('/api/auth/customer', customerAuthRoutes);
 app.use('/api/addresses', addressesRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/documents', documentsRoutes);
+app.use('/api/kits', kitRoutes);
 
 // 404 handler
 app.use((req, res) => {

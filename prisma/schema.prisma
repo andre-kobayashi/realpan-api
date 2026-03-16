@@ -339,6 +339,10 @@ model Product {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   
+  // Kit relations
+  kitItems          KitItem[]   @relation("KitProducts")
+  kitGifts          Kit[]       @relation("KitGift")
+
   @@map("products")
   @@index([categoryId])
   @@index([hinban])
@@ -820,4 +824,79 @@ model ShippingRegion {
   updatedAt       DateTime  @updatedAt
   
   @@map("shipping_regions")
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// KITS PREMIUM
+// ═══════════════════════════════════════════════════════════
+
+model Kit {
+  id                String      @id @default(cuid())
+
+  slug              String      @unique
+  namePt            String
+  nameJa            String
+  descriptionPt     String?     @db.Text
+  descriptionJa     String?     @db.Text
+
+  // Preços (integer YEN)
+  basePrice         Int         // Soma calculada dos produtos
+  promoPrice        Int?        // Preço promocional (null = usa basePrice)
+
+  // Brinde
+  giftEnabled       Boolean     @default(false)
+  giftProductId     String?
+  giftProduct       Product?    @relation("KitGift", fields: [giftProductId], references: [id], onDelete: SetNull)
+
+  // Status
+  isActive          Boolean     @default(true)
+  isFeatured        Boolean     @default(false)
+  sortOrder         Int         @default(0)
+
+  // Relações
+  items             KitItem[]
+  images            KitImage[]
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@map("kits")
+  @@index([slug])
+  @@index([isActive])
+}
+
+model KitItem {
+  id                String      @id @default(cuid())
+
+  kitId             String
+  kit               Kit         @relation(fields: [kitId], references: [id], onDelete: Cascade)
+
+  productId         String
+  product           Product     @relation("KitProducts", fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity          Int         @default(1)
+  sortOrder         Int         @default(0)
+
+  createdAt         DateTime    @default(now())
+
+  @@map("kit_items")
+  @@index([kitId])
+  @@index([productId])
+}
+
+model KitImage {
+  id                String      @id @default(cuid())
+
+  kitId             String
+  kit               Kit         @relation(fields: [kitId], references: [id], onDelete: Cascade)
+
+  imageUrl          String
+  isPrimary         Boolean     @default(false)
+  sortOrder         Int         @default(0)
+
+  createdAt         DateTime    @default(now())
+
+  @@map("kit_images")
+  @@index([kitId])
 }
