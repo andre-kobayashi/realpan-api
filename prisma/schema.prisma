@@ -532,6 +532,13 @@ model Order {
   // DATAS
   // ─────────────────────────────────────────────────────────
   paidAt              DateTime?
+  
+  // Confirmação de pagamento (振込/INVOICE)
+  confirmedAt         DateTime?      // Data da confirmação pelo admin
+  confirmedBy         String?        // Nome/ID de quem confirmou
+  transferReference   String?        // Referência da transferência bancária
+  transferDate        DateTime?      // Data do depósito
+  transferBank        String?        // Banco de origem
   processedAt         DateTime?
   canceledAt          DateTime?
   
