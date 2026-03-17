@@ -239,7 +239,7 @@ router.get('/pending', async (req: Request, res: Response) => {
 // ═══ POST /api/finance/confirm-payment — Confirmar recebimento ═══
 router.post('/confirm-payment', async (req: Request, res: Response) => {
   try {
-    const { orderId, transferReference, transferDate, transferBank, confirmedBy } = req.body;
+    const { orderId, transferReference, transferDate, transferBank, confirmedBy, internalNotes } = req.body;
     if (!orderId) return res.status(400).json({ success: false, message: 'orderId required' });
 
     const order = await (prisma as any).order.update({
@@ -253,6 +253,7 @@ router.post('/confirm-payment', async (req: Request, res: Response) => {
         transferReference: transferReference || null,
         transferDate: transferDate ? new Date(transferDate) : null,
         transferBank: transferBank || null,
+        ...(internalNotes ? { internalNotes } : {}),
       },
     });
 

@@ -199,6 +199,42 @@ router.post('/create-intent', async (req: Request, res: Response) => {
 
     // ── INVOICE (請求書払い) — faturamento mensal, só PJ ──
     if (paymentMethod === 'INVOICE') {
+      // Calcular data de vencimento da fatura baseado na config do cliente PJ
+      const closingDay = customer.billingClosingDay || 31;
+      const dueDay = customer.billingDueDay || 10;
+      const paymentTermsDays = customer.paymentTerms || 0;
+
+      let invoiceDueDate: Date;
+      if (paymentTermsDays > 0) {
+        // Se paymentTerms definido, vencimento = data do pedido + N dias
+        invoiceDueDate = new Date();
+        invoiceDueDate.setDate(invoiceDueDate.getDate() + paymentTermsDays);
+      } else {
+        // Calcular baseado em billingClosingDay + billingDueDay
+        const now = new Date();
+        const currentDay = now.getDate();
+        let closingMonth = now.getMonth();
+        let closingYear = now.getFullYear();
+
+        // Se hoje é depois do dia de fechamento, a fatura é do próximo ciclo
+        if (currentDay > closingDay) {
+          closingMonth += 1;
+        }
+
+        // O vencimento é no mês seguinte ao fechamento
+        let dueMonth = closingMonth + 1;
+        let dueYear = closingYear;
+        if (dueMonth > 11) {
+          dueMonth -= 12;
+          dueYear += 1;
+        }
+
+        // Ajustar dia para não ultrapassar o último dia do mês
+        const lastDayOfDueMonth = new Date(dueYear, dueMonth + 1, 0).getDate();
+        const adjustedDueDay = Math.min(dueDay, lastDayOfDueMonth);
+        invoiceDueDate = new Date(dueYear, dueMonth, adjustedDueDay);
+      }
+
       const order = await prisma.order.create({
         data: {
           orderNumber,
@@ -211,6 +247,7 @@ router.post('/create-intent', async (req: Request, res: Response) => {
           status: 'PENDING',
           paymentStatus: 'INVOICED',
           paymentMethod: 'INVOICE',
+          invoiceDueDate,
           carrierId: carrierId || null,
           deliveryTime: deliveryTimeSlot || null,
           deliveryDate: deliveryDate ? new Date(deliveryDate + 'T00:00:00.000Z') : null,
