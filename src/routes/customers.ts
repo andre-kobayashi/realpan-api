@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { PrismaClient, CustomerType } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
+import emailService from '../services/emailService';
+import { pjApprovalTemplate } from '../templates/emailTemplates';
+
 const router = Router();
 const prisma = new PrismaClient();
 
@@ -151,19 +154,41 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
+    const { approved = true } = req.body;
 
     const customer = await prisma.customer.update({
       where: { id },
-      data: { 
-        approvedAt: new Date(),
-        businessStatus: 'APPROVED'
-      }
+      data: approved
+        ? { approvedAt: new Date(), businessStatus: 'APPROVED' }
+        : { businessStatus: 'REJECTED' }
     });
+
+    // Send approval/rejection email (non-blocking)
+    try {
+      const config = await emailService.getConfig('realpan');
+      const templateConfig = {
+        logoUrl: config.logoUrl, companyName: config.companyName,
+        companyNameJa: config.companyNameJa || null, phone: config.phone,
+        website: config.website || 'https://realpan.jp',
+      };
+      const tmpl = pjApprovalTemplate({
+        firstName: customer.firstName, lastName: customer.lastName,
+        companyName: customer.companyName, email: customer.email,
+        type: customer.type, businessStatus: customer.businessStatus,
+      }, approved, templateConfig);
+      await emailService.send({ to: customer.email, subject: tmpl.subject, html: tmpl.html,
+        tags: [{ name: 'type', value: approved ? 'pj-approved' : 'pj-rejected' }] });
+      console.log(`📧 PJ ${approved ? 'approval' : 'rejection'} email sent to ${customer.email}`);
+    } catch (emailErr: any) {
+      console.error('⚠️ Failed to send PJ email:', emailErr.message);
+    }
 
     res.json({
       success: true,
       data: customer,
-      message: { pt: 'Cliente aprovado', ja: '顧客が承認されました' }
+      message: approved
+        ? { pt: 'Cliente aprovado', ja: '顧客が承認されました' }
+        : { pt: 'Cliente rejeitado', ja: '顧客が却下されました' }
     });
   } catch (error) {
     console.error('Error approving customer:', error);

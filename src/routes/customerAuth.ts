@@ -3,6 +3,9 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
+import emailService from '../services/emailService';
+import { welcomeCustomerTemplate } from '../templates/emailTemplates';
+
 const router = Router();
 const prisma = new PrismaClient();
 
@@ -111,6 +114,25 @@ router.post('/register', async (req, res) => {
         process.env.JWT_SECRET!,
         { expiresIn: '30d' }
       );
+
+      // Send welcome email (non-blocking)
+      try {
+        const config = await emailService.getConfig('realpan');
+        const templateConfig = {
+          logoUrl: config.logoUrl, companyName: config.companyName,
+          companyNameJa: config.companyNameJa || null, phone: config.phone,
+          website: config.website || 'https://realpan.jp',
+        };
+        const tmpl = welcomeCustomerTemplate({
+          firstName, lastName, companyName: null,
+          email: customer.email, type: 'INDIVIDUAL',
+        }, templateConfig);
+        await emailService.send({ to: customer.email, subject: tmpl.subject, html: tmpl.html,
+          tags: [{ name: 'type', value: 'welcome-pf' }] });
+        console.log(`📧 Welcome email sent to ${customer.email}`);
+      } catch (emailErr: any) {
+        console.error('⚠️ Failed to send welcome email:', emailErr.message);
+      }
 
       return res.status(201).json({
         success: true,

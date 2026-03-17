@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import Stripe from 'stripe';
 import { stripe, STRIPE_WEBHOOK_SECRET } from '../config/stripe';
+import emailService from '../services/emailService';
+import { orderConfirmationTemplate, adminNewOrderTemplate } from '../templates/emailTemplates';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -37,13 +39,72 @@ router.post('/stripe', async (req: Request, res: Response) => {
         const pi = event.data.object as Stripe.PaymentIntent;
         console.log(`✅ Payment succeeded: ${pi.id} (¥${pi.amount})`);
 
-        await prisma.order.updateMany({
+        const updatedOrders = await prisma.order.updateMany({
           where: { stripePaymentIntentId: pi.id },
           data: {
             paymentStatus: 'PAID',
             status: 'PAID',
+            paidAt: new Date(),
           },
         });
+
+        // Send order confirmation email
+        try {
+          const order = await prisma.order.findFirst({
+            where: { stripePaymentIntentId: pi.id },
+            include: { items: { include: { product: true } }, customer: true, carrier: true },
+          });
+          if (order) {
+            const config = await emailService.getConfig('realpan');
+            const templateConfig = {
+              logoUrl: config.logoUrl,
+              companyName: config.companyName,
+              companyNameJa: config.companyNameJa || null,
+              phone: config.phone,
+              website: config.website || 'https://realpan.jp',
+            };
+            const orderData = {
+              orderNumber: order.orderNumber,
+              items: order.items.map(item => ({
+                namePt: item.namePt, nameJa: item.nameJa, hinban: item.hinban,
+                quantity: item.quantity, unitPrice: item.unitPrice, subtotal: item.subtotal,
+                image: item.image,
+              })),
+              subtotal: order.subtotal, taxAmount: order.taxAmount,
+              shippingCost: order.shippingCost, daibikiFee: order.daibikiFee,
+              discountAmount: order.discountAmount, total: order.total,
+              paymentMethod: order.paymentMethod,
+              customerName: order.customer.type === 'BUSINESS'
+                ? order.customer.companyName || ''
+                : `${order.customer.lastName || ''} ${order.customer.firstName || ''}`.trim(),
+              customerEmail: order.customer.email,
+              customerType: order.customer.type,
+              shippingName: order.shippingName,
+              shippingPostalCode: order.shippingPostalCode,
+              shippingPrefecture: order.shippingPrefecture,
+              shippingCity: order.shippingCity,
+              shippingWard: order.shippingWard || undefined,
+              shippingStreet: order.shippingStreet,
+              shippingBuilding: order.shippingBuilding || undefined,
+              deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('ja-JP') : null,
+              deliveryTime: order.deliveryTime || null,
+              trackingCode: order.trackingCode || null,
+              carrierName: order.carrier?.name || null,
+            };
+            // Email to customer
+            const tmpl = orderConfirmationTemplate(orderData, templateConfig);
+            await emailService.send({ to: order.customer.email, subject: tmpl.subject, html: tmpl.html,
+              tags: [{ name: 'type', value: 'order-confirmation' }, { name: 'order', value: order.orderNumber }] });
+            // Email to admin
+            const adminTmpl = adminNewOrderTemplate(orderData, templateConfig);
+            const adminEmails = (process.env.ADMIN_NOTIFICATION_EMAILS || 'clientrealpan@gmail.com').split(',').map((e: string) => e.trim());
+            await emailService.send({ to: adminEmails, subject: adminTmpl.subject, html: adminTmpl.html,
+              tags: [{ name: 'type', value: 'admin-new-order' }, { name: 'order', value: order.orderNumber }] });
+            console.log(`📧 Order confirmation emails sent for ${order.orderNumber}`);
+          }
+        } catch (emailErr: any) {
+          console.error('⚠️ Failed to send order email (non-blocking):', emailErr.message);
+        }
         break;
       }
 

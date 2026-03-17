@@ -59,14 +59,67 @@ router.post('/create-intent', async (req: Request, res: Response) => {
       }
     }
 
-    // Buscar produtos para snapshot
+    // ═══ Expandir Kits em produtos individuais ═══
+    const expandedItems: any[] = [];
+    const kitItemIds = items.filter((i: any) => String(i.productId).startsWith('kit-'));
+    const regularItemIds = items.filter((i: any) => !String(i.productId).startsWith('kit-'));
+
+    // Resolver kits
+    if (kitItemIds.length > 0) {
+      for (const kitItem of kitItemIds) {
+        const kitId = String(kitItem.productId).replace('kit-', '');
+        const kit = await prisma.kit.findUnique({
+          where: { id: kitId },
+          include: {
+            items: {
+              include: { product: true },
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
+        });
+        if (!kit) throw new Error(`Kit ${kitId} não encontrado`);
+
+        // Preço total do kit (como enviado pelo frontend)
+        const kitPrice = kitItem.unitPrice || kit.promoPrice || kit.basePrice;
+        const kitBaseTotal = kit.items.reduce((sum: number, ki: any) => sum + (ki.product.retailPriceWithTax || ki.product.retailPrice || 0) * ki.quantity, 0) || kitPrice;
+
+        // Distribuir preço proporcional entre os produtos do kit
+        kit.items.forEach((ki: any) => {
+          const productOriginalPrice = (ki.product.retailPriceWithTax || ki.product.retailPrice || 0) * ki.quantity;
+          const proportion = kitBaseTotal > 0 ? productOriginalPrice / kitBaseTotal : 1 / kit.items.length;
+          const allocatedPrice = Math.round(kitPrice * proportion);
+
+          expandedItems.push({
+            productId: ki.product.id,
+            quantity: ki.quantity * (kitItem.quantity || 1),
+            unitPrice: Math.round(allocatedPrice / ki.quantity),
+            isFromKit: true,
+            kitId: kit.id,
+            kitName: kit.namePt,
+          });
+        });
+      }
+    }
+
+    // Adicionar itens regulares
+    regularItemIds.forEach((item: any) => {
+      expandedItems.push({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        isFromKit: false,
+      });
+    });
+
+    // Buscar produtos para snapshot (usando IDs expandidos)
+    const allProductIds = [...new Set(expandedItems.map((i: any) => i.productId))];
     const products = await prisma.product.findMany({
-      where: { id: { in: items.map((i: any) => i.productId) } },
+      where: { id: { in: allProductIds } },
     });
 
     // Calcular totais
     let calcSubtotal = 0;
-    const orderItems = items.map((item: any) => {
+    const orderItems = expandedItems.map((item: any) => {
       const product = products.find((p) => p.id === item.productId);
       if (!product) throw new Error(`Produto ${item.productId} não encontrado`);
       const itemSubtotal = item.unitPrice * item.quantity;

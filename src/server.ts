@@ -24,6 +24,7 @@ import addressesRoutes from './routes/addresses';
 import documentsRoutes from './routes/documents';
 import kitRoutes from './routes/kits';
 import financeRoutes from './routes/finance';
+import emailRoutes from './routes/email';
 
 dotenv.config();
 
@@ -75,6 +76,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/kits', kitRoutes);
 app.use('/api/finance', financeRoutes);
+app.use('/api/email', emailRoutes);
 
 // 404 handler
 app.use((req, res) => {
