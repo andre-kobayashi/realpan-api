@@ -926,3 +926,23 @@ model KitImage {
   @@map("kit_images")
   @@index([kitId])
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// Banner / Hero Slides (managed by admin)
+// ═══════════════════════════════════════════════════════════
+model Banner {
+  id          String   @id @default(cuid())
+  titlePt     String   @default("")
+  titleJa     String   @default("")
+  subtitlePt  String   @default("")
+  subtitleJa  String   @default("")
+  ctaPt       String   @default("")
+  ctaJa       String   @default("")
+  linkUrl     String   @default("")
+  imageUrl    String   @default("")
+  position    Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

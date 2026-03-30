@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -16,6 +17,7 @@ import zipcodeRoutes from './routes/zipcode';
 import taxesRoutes from './routes/taxes';
 import uploadRoutes from './routes/upload';
 import settingsRoutes from './routes/settings';
+import bannersRoutes from './routes/banners';
 import usersRoutes from './routes/users';
 import customerAuthRoutes from './routes/customerAuth';
 import paymentsRoutes from './routes/payments';
@@ -50,6 +52,9 @@ app.use(cors({
 app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhooksRoutes);
 app.use(express.json());
 
+// Serve static files (uploads: logos, hankos, banners)
+app.use('/api/uploads', express.static(path.join(__dirname, '../public/uploads')));;
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -68,6 +73,7 @@ app.use('/api/pricing', pricingRoutes);
 app.use('/api/zipcode', zipcodeRoutes);
 app.use('/api/taxes', taxesRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/banners', bannersRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/auth/customer', customerAuthRoutes);
