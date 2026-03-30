@@ -75,9 +75,8 @@ enum ShippingCarrier {
 }
 
 enum WholesaleUnit {
-  UNIT    // Unidade
-  BOX     // Caixa
-  PACKAGE // Pacote
+  UNIT  // Unidade
+  BOX   // Caixa
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -280,7 +279,6 @@ model Product {
   // Venda Atacado
   wholesaleUnit      WholesaleUnit  @default(UNIT)  // UNIT = unidade, BOX = caixa
   unitsPerBox        Int?                            // Se BOX, quantas unidades?
-  unitsPerPackage    Int?                            // Se PACKAGE, quantas unidades?
   boxPrice          Int?        // Preço da caixa (calculado automaticamente)
   
   // ─────────────────────────────────────────────────────────

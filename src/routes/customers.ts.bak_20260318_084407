@@ -3,7 +3,7 @@ import { PrismaClient, CustomerType } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 import emailService from '../services/emailService';
-import { pjApprovalTemplate, pjWelcomeCredentialsTemplate } from '../templates/emailTemplates';
+import { pjApprovalTemplate } from '../templates/emailTemplates';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -196,51 +196,6 @@ router.patch('/:id/approve', async (req, res) => {
       success: false,
       message: { pt: 'Erro ao aprovar cliente', ja: '顧客の承認に失敗しました' }
     });
-  }
-});
-
-
-
-// POST /api/customers/:id/send-credentials
-router.post('/:id/send-credentials', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { tempPassword, salesRepName } = req.body;
-
-    if (!tempPassword) {
-      return res.status(400).json({ success: false, message: { pt: 'Senha obrigatoria', ja: '仮パスワードが必要です' } });
-    }
-
-    const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer) return res.status(404).json({ success: false, message: { pt: 'Cliente nao encontrado', ja: '顧客が見つかりません' } });
-    if (customer.type !== 'BUSINESS') return res.status(400).json({ success: false, message: { pt: 'Apenas PJ', ja: '法人のみ' } });
-
-    const config = await emailService.getConfig('realpan');
-    const templateConfig = {
-      logoUrl: config.logoUrl, companyName: config.companyName,
-      companyNameJa: config.companyNameJa || null, phone: config.phone,
-      website: config.website || 'https://realpan.jp',
-    };
-    const contactName = `${customer.lastName || ''} ${customer.firstName || ''}`.trim() || customer.email;
-
-    const tmpl = pjWelcomeCredentialsTemplate({
-      companyName: customer.companyName || contactName,
-      contactName,
-      email: customer.email,
-      tempPassword,
-      
-      salesRepName: salesRepName || undefined,
-    }, templateConfig);
-
-    await emailService.send({ to: customer.email, subject: tmpl.subject, html: tmpl.html,
-      tags: [{ name: 'type', value: 'pj-credentials' }] });
-
-    console.log('PJ credentials email sent to ' + customer.email);
-
-    res.json({ success: true, message: { pt: 'Email enviado!', ja: 'メール送信完了！' } });
-  } catch (error: any) {
-    console.error('Error sending credentials:', error);
-    res.status(500).json({ success: false, message: { pt: 'Erro ao enviar', ja: 'エラー' } });
   }
 });
 

@@ -75,9 +75,8 @@ enum ShippingCarrier {
 }
 
 enum WholesaleUnit {
-  UNIT    // Unidade
-  BOX     // Caixa
-  PACKAGE // Pacote
+  UNIT  // Unidade
+  BOX   // Caixa
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -130,11 +129,9 @@ model Customer {
   companyName       String?       // Razão social
   companyNameKana   String?       // Razão social em Katakana
   houjinBangou      String?       // 法人番号 (13 dígitos para Houjin)
-  customerCode       String?       // Codigo interno do cliente (ex: 341, 341-R)
   businessType      BusinessType?   // Tipo de negócio (個人事業 ou 法人)
   invoiceNumber     String?         // Invoice Number (適格請求書発行事業者)
   representativeName String?      // Nome do representante
-  contactName        String?       // Nome da pessoa de contato
   
   businessStatus    BusinessStatus? @default(PENDING) // Status aprovação PJ
   approvedAt        DateTime?     // Data de aprovação
@@ -171,7 +168,6 @@ model Customer {
   paymentTerms      Int?          // Dias para pagamento (ex: 30 = paga 30 dias após fatura)
   creditLimit       Int?          // Limite de crédito em centavos/yen
   discountRate      Float?          // Taxa de desconto PJ (0.10 = 10%, 0.15 = 15%)
-  allowedPaymentMethods String[]  @default([])  // Metodos habilitados
   billingClosingDay Int?          @default(31)  // Dia de fechamento da fatura (1-31)
   billingDueDay     Int?          @default(10)  // Dia de vencimento (1-31)
   
@@ -280,7 +276,6 @@ model Product {
   // Venda Atacado
   wholesaleUnit      WholesaleUnit  @default(UNIT)  // UNIT = unidade, BOX = caixa
   unitsPerBox        Int?                            // Se BOX, quantas unidades?
-  unitsPerPackage    Int?                            // Se PACKAGE, quantas unidades?
   boxPrice          Int?        // Preço da caixa (calculado automaticamente)
   
   // ─────────────────────────────────────────────────────────

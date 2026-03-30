@@ -267,7 +267,7 @@ export function orderConfirmationTemplate(order: OrderData, config: TemplateConf
     </div>
 
     <div style="padding: 0 24px 32px; text-align: center;">
-      <a href="https://realpan.jp/pt/account"
+      <a href="https://realpan.jp/account/orders"
          style="display: inline-block; background: ${COLORS.navy}; color: ${COLORS.white}; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-size: 14px; font-weight: 700; letter-spacing: 0.5px;">
         &#x6CE8;&#x6587;&#x3092;&#x78BA;&#x8A8D;&#x3059;&#x308B; / Ver Pedido &#x2192;
       </a>
@@ -577,124 +577,6 @@ export function adminNewOrderTemplate(order: OrderData, config: TemplateConfig):
 
   return {
     subject: `&#x1F514; &#x65B0;&#x898F;&#x6CE8;&#x6587; ${order.orderNumber} &#x2022; ${formatPrice(order.total)} &#x2022; ${order.customerName}`,
-    html: baseLayout(content, config),
-  };
-}
-
-
-// ═══════════════════════════════════════════════════════════
-// TEMPLATE 5: PJ WELCOME WITH CREDENTIALS
-// ═══════════════════════════════════════════════════════════
-export function pjWelcomeCredentialsTemplate(
-  data: { companyName: string; contactName: string; email: string; tempPassword: string; discountPercent?: number; salesRepName?: string },
-  config: TemplateConfig
-): { subject: string; html: string } {
-
-  const discountBadge = data.discountPercent
-    ? `<div style="background: ${COLORS.greenBg}; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
-        <span style="font-size: 16px; margin-right: 8px;">&#x1F4B0;</span>
-        <span style="font-size: 14px; color: ${COLORS.green}; font-weight: 600;">
-          \u5378\u58F2\u5272\u5F15: ${data.discountPercent}% / Desconto atacado: ${data.discountPercent}%
-        </span>
-      </div>`
-    : '';
-
-  const salesRepHtml = data.salesRepName
-    ? `<div style="font-size: 13px; color: ${COLORS.gray700}; margin-top: 8px;">\u62C5\u5F53\u8005 / Vendedor: <strong>${data.salesRepName}</strong></div>`
-    : '';
-
-  const content = `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td style="background: linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.navyLight} 100%); padding: 36px 24px; text-align: center;">
-      <div style="font-size: 44px; margin-bottom: 14px;">&#x1F91D;</div>
-      <h1 style="margin: 0 0 6px; font-size: 22px; font-weight: 700; color: ${COLORS.white};">\u3044\u3064\u3082\u304A\u4E16\u8A71\u306B\u306A\u3063\u3066\u304A\u308A\u307E\u3059</h1>
-      <p style="margin: 0; font-size: 14px; color: ${COLORS.goldLight};">Agradecemos pela parceria cont\u00EDnua!</p>
-    </td>
-    </tr></table>
-
-    <div style="padding: 28px 24px;">
-      <p style="font-size: 15px; color: ${COLORS.gray700}; line-height: 1.8; margin: 0 0 8px;"><strong>${data.companyName}</strong> \u69D8</p>
-      <p style="font-size: 15px; color: ${COLORS.gray700}; line-height: 1.8; margin: 0 0 8px;">${data.contactName} \u69D8</p>
-
-      <p style="font-size: 14px; color: ${COLORS.gray700}; line-height: 1.8; margin: 0 0 20px;">
-        \u5E73\u7D20\u3088\u308A\u5F0A\u793E\u3092\u3054\u611B\u9867\u3044\u305F\u3060\u304D\u3001\u8AA0\u306B\u3042\u308A\u304C\u3068\u3046\u3054\u3056\u3044\u307E\u3059\u3002<br/>
-        \u3053\u306E\u5EA6\u3001\u304A\u5BA2\u69D8\u306E\u3054\u6CE8\u6587\u3092\u3088\u308A\u30B9\u30E0\u30FC\u30BA\u306B\u884C\u3048\u308B\u3088\u3046\u3001<strong>\u65B0\u3057\u3044\u30AA\u30F3\u30E9\u30A4\u30F3\u6CE8\u6587\u30B7\u30B9\u30C6\u30E0</strong>\u3092\u5C0E\u5165\u3044\u305F\u3057\u307E\u3057\u305F\u3002<br/><br/>
-        Agradecemos por ser nosso parceiro. Para facilitar seus pedidos, lan\u00E7amos nosso <strong>novo sistema de pedidos online</strong> com pre\u00E7os exclusivos de atacado.
-      </p>
-
-      <div style="background: ${COLORS.goldBg}; border: 2px solid ${COLORS.gold}; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-        <div style="font-size: 15px; font-weight: 700; color: ${COLORS.navy}; margin-bottom: 14px; text-align: center;">&#x1F511; \u30ED\u30B0\u30A4\u30F3\u60C5\u5831 / Dados de Acesso</div>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="padding: 8px 0; font-size: 13px; color: ${COLORS.gray500}; width: 120px;">\u30E1\u30FC\u30EB / Email:</td>
-            <td style="padding: 8px 0; font-size: 14px; color: ${COLORS.navy}; font-weight: 700; font-family: 'Courier New', monospace;">${data.email}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; font-size: 13px; color: ${COLORS.gray500};">\u30D1\u30B9\u30EF\u30FC\u30C9 / Senha:</td>
-            <td style="padding: 8px 0;">
-              <span style="background: ${COLORS.navy}; color: ${COLORS.white}; padding: 6px 14px; border-radius: 6px; font-size: 16px; font-weight: 700; font-family: 'Courier New', monospace; letter-spacing: 2px;">${data.tempPassword}</span>
-            </td>
-          </tr>
-        </table>
-        <div style="font-size: 11px; color: ${COLORS.gray500}; margin-top: 10px; text-align: center;">
-          \u203B \u30ED\u30B0\u30A4\u30F3\u5F8C\u3001\u30D1\u30B9\u30EF\u30FC\u30C9\u306E\u5909\u66F4\u3092\u304A\u52E7\u3081\u3057\u307E\u3059\u3002 / Recomendamos alterar a senha ap\u00F3s o primeiro login.
-        </div>
-      </div>
-
-      ${discountBadge}
-
-      <h3 style="font-size: 15px; color: ${COLORS.navy}; margin: 20px 0 12px; font-weight: 700;">\u3054\u5229\u7528\u65B9\u6CD5 / Como utilizar</h3>
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="padding: 8px; width: 25%; text-align: center; vertical-align: top;">
-            <div style="background: ${COLORS.gray100}; border-radius: 12px; padding: 14px 8px;">
-              <div style="font-size: 24px; margin-bottom: 6px;">&#x2776;</div>
-              <div style="font-size: 11px; font-weight: 600; color: ${COLORS.navy};">\u30ED\u30B0\u30A4\u30F3</div>
-              <div style="font-size: 10px; color: ${COLORS.gray500};">Login</div>
-            </div>
-          </td>
-          <td style="padding: 8px; width: 25%; text-align: center; vertical-align: top;">
-            <div style="background: ${COLORS.gray100}; border-radius: 12px; padding: 14px 8px;">
-              <div style="font-size: 24px; margin-bottom: 6px;">&#x2777;</div>
-              <div style="font-size: 11px; font-weight: 600; color: ${COLORS.navy};">\u5546\u54C1\u3092\u9078\u3076</div>
-              <div style="font-size: 10px; color: ${COLORS.gray500};">Escolher</div>
-            </div>
-          </td>
-          <td style="padding: 8px; width: 25%; text-align: center; vertical-align: top;">
-            <div style="background: ${COLORS.gray100}; border-radius: 12px; padding: 14px 8px;">
-              <div style="font-size: 24px; margin-bottom: 6px;">&#x2778;</div>
-              <div style="font-size: 11px; font-weight: 600; color: ${COLORS.navy};">\u6CE8\u6587\u78BA\u5B9A</div>
-              <div style="font-size: 10px; color: ${COLORS.gray500};">Confirmar</div>
-            </div>
-          </td>
-          <td style="padding: 8px; width: 25%; text-align: center; vertical-align: top;">
-            <div style="background: ${COLORS.gray100}; border-radius: 12px; padding: 14px 8px;">
-              <div style="font-size: 24px; margin-bottom: 6px;">&#x2779;</div>
-              <div style="font-size: 11px; font-weight: 600; color: ${COLORS.navy};">\u304A\u5C4A\u3051</div>
-              <div style="font-size: 10px; color: ${COLORS.gray500};">Receber</div>
-            </div>
-          </td>
-        </tr>
-      </table>
-
-      <div style="background: ${COLORS.gray100}; border-radius: 10px; padding: 14px 16px; margin-top: 20px; font-size: 13px; color: ${COLORS.gray700}; line-height: 1.7;">
-        \u3054\u4E0D\u660E\u306A\u70B9\u304C\u3054\u3056\u3044\u307E\u3057\u305F\u3089\u3001\u304A\u6C17\u8EFD\u306B\u304A\u554F\u3044\u5408\u308F\u305B\u304F\u3060\u3055\u3044\u3002<br/>
-        Em caso de d\u00FAvidas, entre em contato conosco.
-        ${salesRepHtml}
-      </div>
-    </div>
-
-    <div style="padding: 0 24px 32px; text-align: center;">
-      <a href="https://realpan.jp/login"
-         style="display: inline-block; background: ${COLORS.navy}; color: ${COLORS.white}; text-decoration: none; padding: 16px 40px; border-radius: 10px; font-size: 15px; font-weight: 700;">
-        &#x1F511; \u30ED\u30B0\u30A4\u30F3\u3059\u308B / Fazer Login &#x2192;
-      </a>
-    </div>
-  `;
-
-  return {
-    subject: `\u1F511 \u30AA\u30F3\u30E9\u30A4\u30F3\u6CE8\u6587\u30B7\u30B9\u30C6\u30E0\u306E\u3054\u6848\u5185 / Acesso ao Sistema - ${config.companyName}`,
     html: baseLayout(content, config),
   };
 }
